@@ -1,0 +1,46 @@
+scenario_id: "01_happy_path"
+name: "Staging Happy-Path Baseline"
+description: "Clean single-delivery webhooks with zero downstream faults or schema drift."
+quiescence_wait_ms: 15
+
+events:
+  - event_id: "evt_yaml_happy_01"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_happy_01"
+    correlation_id: "corr_yaml_happy_01"
+    timestamp: 1761171720
+    payload:
+      order_id: "ord_9001"
+      customer_email: "ada.lovelace@analytical.io"
+      amount_cents: 14900
+      currency: "USD"
+  - event_id: "evt_yaml_happy_02"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_happy_02"
+    correlation_id: "corr_yaml_happy_02"
+    timestamp: 1761171721
+    payload:
+      order_id: "ord_9002"
+      customer_email: "grace.hopper@compilers.org"
+      amount_cents: 29900
+      currency: "USD"
+
+chaos:
+  duplicate_deliveries_per_event: 1
+  concurrent_duplicates: false
+  signing_secret: "bt_whsec_prod_9f8e7d6c5b4a3210"
+  mutations: []
+  fault_rules: []
+
+invariants:
+  - invariant_id: "inv_cardinality"
+    invariant_type: "exact_cardinality"
+    description: "Exactly 2 orders persisted in CRM, Ledger, and Notification twins"
+    params:
+      expected_valid_records: 2
+  - invariant_id: "inv_consistency"
+    invariant_type: "cross_system_consistency"
+    description: "CRM, Ledger, and Notification records match 1:1 without split-brain"
+  - invariant_id: "inv_no_swallow"
+    invariant_type: "zero_silent_swallow"
+    description: "Every inbound order event is completely reconciled"

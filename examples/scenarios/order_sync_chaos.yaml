@@ -1,0 +1,97 @@
+scenario_id: "06_full_chaos_gauntlet"
+name: "Order Fulfillment Full Chaos Gauntlet"
+description: "Subjects the order integration pipeline to 2x concurrent duplicate bursts, CRM HTTP 429 rate limits, Ledger HTTP 503 outages, network jitter, stringified numbers, and a missing-email poison pill."
+quiescence_wait_ms: 25
+
+events:
+  - event_id: "evt_yaml_chaos_01"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_chaos_01"
+    correlation_id: "corr_yaml_chaos_01"
+    timestamp: 1761171801
+    payload:
+      order_id: "ord_7001"
+      customer_email: "ada.lovelace@analytical.io"
+      amount_cents: 18500
+      currency: "USD"
+  - event_id: "evt_yaml_chaos_02"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_chaos_02"
+    correlation_id: "corr_yaml_chaos_02"
+    timestamp: 1761171802
+    payload:
+      order_id: "ord_7002"
+      customer_email: "grace.hopper@compilers.org"
+      amount_cents: 34000
+      currency: "USD"
+  - event_id: "evt_yaml_chaos_03"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_chaos_03"
+    correlation_id: "corr_yaml_chaos_03"
+    timestamp: 1761171803
+    payload:
+      order_id: "ord_7003"
+      customer_email: "margaret.hamilton@apollo.gov"
+      amount_cents: 52000
+      currency: "USD"
+  - event_id: "evt_yaml_chaos_04_poison"
+    event_type: "order.completed"
+    idempotency_key: "idem_yaml_chaos_04_poison"
+    correlation_id: "corr_yaml_chaos_04_poison"
+    timestamp: 1761171804
+    payload:
+      order_id: "ord_7004"
+      customer_email: "poison.drop@example.com"
+      amount_cents: 12000
+      currency: "USD"
+
+chaos:
+  duplicate_deliveries_per_event: 2
+  concurrent_duplicates: true
+  signing_secret: "bt_whsec_prod_9f8e7d6c5b4a3210"
+  mutations:
+    - mutation_id: "stringify_amount_on_first"
+      drift_type: "stringify_numbers"
+      apply_to_event_indices: [0]
+      source_field: "amount_cents"
+      expect_rejected_or_dlq: false
+    - mutation_id: "drop_email_on_fourth"
+      drift_type: "drop_required_field"
+      apply_to_event_indices: [3]
+      source_field: "customer_email"
+      expect_rejected_or_dlq: true
+  fault_rules:
+    - rule_id: "crm_rate_limit_429"
+      target_service: "crm"
+      fault_type: "rate_limit_429"
+      fail_first_n_per_key: 1
+      retry_after_seconds: 0.015
+    - rule_id: "ledger_transient_503"
+      target_service: "ledger"
+      fault_type: "transient_503"
+      fail_first_n_per_key: 1
+      retry_after_seconds: 0.015
+
+invariants:
+  - invariant_id: "inv_cardinality"
+    invariant_type: "exact_cardinality"
+    description: "Exactly 3 valid orders persisted; 1 poison event isolated to DLQ"
+    params:
+      expected_valid_records: 3
+  - invariant_id: "inv_consistency"
+    invariant_type: "cross_system_consistency"
+    description: "Zero split-brain state across CRM, Ledger, and Notification twins"
+  - invariant_id: "inv_idempotency"
+    invariant_type: "idempotency_enforcement"
+    description: "All downstream writes include Idempotency-Key and prevent duplicate records"
+  - invariant_id: "inv_backoff"
+    invariant_type: "retry_backoff_compliance"
+    description: "Pipeline retries 429 and 503 responses respecting backoff interval"
+    params:
+      min_backoff_seconds: 0.01
+  - invariant_id: "inv_poison_containment"
+    invariant_type: "poison_pill_containment"
+    description: "Missing-email event routed to DLQ without polluting CRM or Ledger"
+  - invariant_id: "inv_no_swallow"
+    invariant_type: "zero_silent_swallow"
+    description: "100% of unique inbound events are reconciled or captured in DLQ"

@@ -108,9 +108,9 @@ bridgetest/
 ### 1. Install in Editable Mode
 
 ```bash
-git clone https://github.com/your-username/bridgetest.git
-cd bridgetest
-pip install -e .
+git clone https://github.com/sismax01/BridgeTest.git
+cd BridgeTest
+python -m pip install -e ".[dev]"
 ```
 
 ### 2. Run the Automated Test Suite

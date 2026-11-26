@@ -1,6 +1,6 @@
 # BridgeTest — Chaos Engineering & End-to-End State Verification for Integration Pipelines
 
-[CI](https://www.google.com/search?q=https://github.com/sismax01/BridgeTest/actions/workflows/ci.yml)
+[![CI](https://github.com/sismax01/BridgeTest/actions/workflows/ci.yml/badge.svg)](https://github.com/sismax01/BridgeTest/actions/workflows/ci.yml)
 
 
 
